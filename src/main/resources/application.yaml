@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: enterprise-ai-rag
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ragdb
+    username: raguser
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+      embedding:
+        options:
+          model: text-embedding-3-small
+
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        dimensions: 1536
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
