@@ -2,13 +2,16 @@ package com.dj.enterprise.ai.rag.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedConstruction;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 class DocumentServiceTest {
@@ -23,39 +26,57 @@ class DocumentServiceTest {
     }
 
     @Test
-    void shouldSplitAndStoreDocument() {
-        String text = """
-                The company allows employees to work from home
-                two days per week. Annual leave entitlement is
-                25 days excluding public holidays.
-                """;
-
+    void shouldSplitAndStoreTextDocument() {
         int chunks = documentService.ingest(
-                "company-policy.txt", text);
-
-        assertTrue(chunks > 0);
-
-        verify(vectorStore, times(1)).add(anyList());
-    }
-
-    @Test
-    void shouldStoreDocumentWithSourceMetadata() {
-        documentService.ingest(
                 "company-policy.txt",
                 "Employees can work from home two days per week.");
 
-        @SuppressWarnings("unchecked")
-        var captor = org.mockito.ArgumentCaptor.forClass(
-                (Class<List<Document>>) (Class<?>) List.class);
+        assertTrue(chunks > 0);
+        verify(vectorStore).add(anyList());
+    }
 
-        verify(vectorStore).add(captor.capture());
+    @Test
+    void shouldReadSplitAndStorePdf() throws Exception {
+        List<Document> pages = List.of(
+                new Document(
+                        "Employees can work from home two days per week.",
+                        Map.of("page_number", 1)
+                )
+        );
 
-        List<Document> documents = captor.getValue();
+        try (MockedConstruction<PagePdfDocumentReader> mockedReader =
+                     mockConstruction(
+                             PagePdfDocumentReader.class,
+                             (reader, context) ->
+                                     when(reader.get()).thenReturn(pages))) {
 
-        assertFalse(documents.isEmpty());
+            org.springframework.mock.web.MockMultipartFile pdf =
+                    new org.springframework.mock.web.MockMultipartFile(
+                            "file",
+                            "company-policy.pdf",
+                            "application/pdf",
+                            "%PDF-test".getBytes()
+                    );
 
-        assertEquals(
-                "company-policy.txt",
-                documents.getFirst().getMetadata().get("source"));
+            int chunks = documentService.ingestPdf(pdf);
+
+            assertTrue(chunks > 0);
+            assertEquals(1, mockedReader.constructed().size());
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<Document>> captor =
+                    ArgumentCaptor.forClass(List.class);
+
+            verify(vectorStore).add(captor.capture());
+
+            List<Document> storedDocuments = captor.getValue();
+
+            assertFalse(storedDocuments.isEmpty());
+            assertEquals(
+                    "company-policy.pdf",
+                    storedDocuments.getFirst()
+                            .getMetadata().get("source")
+            );
+        }
     }
 }

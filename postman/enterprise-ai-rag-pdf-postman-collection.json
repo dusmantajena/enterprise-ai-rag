@@ -1,0 +1,255 @@
+{
+  "info": {
+    "_postman_id": "d3b4b9c2-5d4f-4f3e-8f5b-7b8c9d0e1f2a",
+    "name": "Enterprise AI RAG POC - PDF",
+    "description": "Postman collection for the Spring Boot 4, Java 25, Spring AI, PostgreSQL/pgvector RAG POC. Start PostgreSQL and the application first. Upload and index a PDF before asking questions.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "pdfFilePath",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "item": [
+        {
+          "name": "Actuator Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health",
+            "description": "Checks whether Spring Boot is running."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Health endpoint returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Health status is UP', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. PDF Ingestion",
+      "item": [
+        {
+          "name": "Upload and Index PDF",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{pdfFilePath}}",
+                  "description": "Select company-policy-rag-sample.pdf using Postman's file picker."
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/v1/documents/pdf",
+            "description": "In Postman, select the PDF file in Body > form-data > file. If the collection variable does not resolve to a local file, use the file picker directly. Do not manually set Content-Type; Postman must add the multipart boundary."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PDF indexing returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response confirms indexing', function () {",
+                  "    pm.expect(pm.response.json().message).to.eql('PDF indexed successfully');",
+                  "});",
+                  "pm.test('Response includes chunk count', function () {",
+                  "    pm.expect(pm.response.json().chunksCreated).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. RAG Question Answering",
+      "item": [
+        {
+          "name": "Ask \u2014 Work From Home",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"How many days per week may employees work from home?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/ai/ask",
+            "description": "Run after uploading the sample PDF. Expected information: two days per week."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Question endpoint returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains an answer', function () {",
+                  "    pm.expect(pm.response.json().answer).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask \u2014 Annual Leave",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"How many annual leave days do full-time employees receive, excluding public holidays?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/ai/ask",
+            "description": "Expected information: 25 days excluding public holidays."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Question endpoint returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains an answer', function () {",
+                  "    pm.expect(pm.response.json().answer).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask \u2014 Sickness Absence",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"When should an employee notify their manager about sickness absence?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/ai/ask",
+            "description": "Expected information: as soon as possible on the first day of sickness absence."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Question endpoint returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains an answer', function () {",
+                  "    pm.expect(pm.response.json().answer).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask \u2014 Information Not in PDF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What is the company's annual bonus?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/ai/ask",
+            "description": "Tests a question not covered by the sample PDF. LLM output can vary."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Question endpoint returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains an answer', function () {",
+                  "    pm.expect(pm.response.json().answer).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

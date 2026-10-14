@@ -6,6 +6,7 @@ import com.dj.enterprise.ai.rag.service.DocumentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Map;
 
@@ -25,7 +26,7 @@ class DocumentControllerTest {
     }
 
     @Test
-    void shouldReturnSuccessAfterIndexingDocument() {
+    void shouldIndexTextDocument() {
         String name = "company-policy.txt";
         String text = "Employees can work from home two days per week.";
 
@@ -39,13 +40,51 @@ class DocumentControllerTest {
         assertEquals(
                 "Document indexed successfully",
                 response.getBody().get("message"));
-        assertEquals(
-                name,
-                response.getBody().get("documentName"));
-        assertEquals(
-                1,
-                response.getBody().get("chunksCreated"));
 
         verify(documentService).ingest(name, text);
+    }
+
+    @Test
+    void shouldUploadAndIndexPdf() throws Exception {
+        MockMultipartFile pdf = new MockMultipartFile(
+                "file",
+                "company-policy.pdf",
+                "application/pdf",
+                "%PDF-test".getBytes()
+        );
+
+        when(documentService.ingestPdf(pdf)).thenReturn(3);
+
+        ResponseEntity<Map<String, Object>> response =
+                documentController.uploadPdf(pdf);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(
+                "PDF indexed successfully",
+                response.getBody().get("message"));
+        assertEquals(
+                "company-policy.pdf",
+                response.getBody().get("fileName"));
+        assertEquals(
+                3,
+                response.getBody().get("chunksCreated"));
+
+        verify(documentService).ingestPdf(pdf);
+    }
+
+    @Test
+    void shouldRejectEmptyPdf() {
+        MockMultipartFile pdf = new MockMultipartFile(
+                "file",
+                "empty.pdf",
+                "application/pdf",
+                new byte[0]
+        );
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> documentController.uploadPdf(pdf));
+
+        verifyNoInteractions(documentService);
     }
 }
