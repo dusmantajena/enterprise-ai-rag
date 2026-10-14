@@ -1,22 +1,25 @@
 # Enterprise AI RAG POC
 
-A simple Retrieval-Augmented Generation (RAG) API built with Java 25, Spring Boot 4, Spring AI, and PostgreSQL/pgvector.
-
-## Stack
-
-- Java 25, Spring Boot 4, Maven
-- Spring AI with an OpenAI chat model and embedding model
-- PostgreSQL + pgvector
-- Docker Compose
-- Postman
+A small Retrieval-Augmented Generation (RAG) API built with **Java 25, Spring Boot 4, Spring AI, OpenAI, PostgreSQL and pgvector**.
 
 ## How it works
 
-1. Submit document text to the ingestion API.
-2. Spring AI splits the text and creates embeddings.
-3. pgvector stores the chunks and embeddings.
-4. Submit a question; Spring AI retrieves relevant chunks and sends them to the chat model.
-5. The API returns an answer based on the retrieved context.
+1. Submit plain text or upload a PDF.
+2. Extract text and split it into smaller chunks.
+3. Generate embeddings for the chunks.
+4. Store chunks, embeddings and source metadata in PostgreSQL/pgvector.
+5. Ask a question; Spring AI retrieves relevant chunks and uses them as context for the chat model.
+6. Return the generated answer from the REST API.
+
+## Technology stack
+
+- Java 25 and Spring Boot 4
+- Spring AI with OpenAI chat and embedding models
+- PostgreSQL with pgvector
+- Docker Compose
+- Maven
+- Postman
+- JUnit 5 and Mockito
 
 ## Prerequisites
 
@@ -34,9 +37,9 @@ POSTGRES_PASSWORD=your-local-db-password
 OPENAI_API_KEY=your-openai-api-key
 ```
 
-Keep `.env` out of Git. Commit `.env.example` with placeholder values only.
+Keep `.env` out of Git. Commit `.env.example` with placeholder values only. Do not put real credentials in `application.yml`.
 
-`application.yml` should reference environment variables, not contain secrets:
+Example configuration (adjust the database port to match `docker-compose.yml`):
 
 ```yaml
 spring:
@@ -49,41 +52,48 @@ spring:
       api-key: ${OPENAI_API_KEY}
 ```
 
-Spring Boot does not automatically load `.env`. In PowerShell, load the variables in the same terminal before running Maven:
+Spring Boot does not automatically load `.env`. In PowerShell, load its values in the same terminal before starting Maven:
 
 ```powershell
 Get-Content .env | ForEach-Object {
     if ($_ -match '^\s*([^#][^=]*)=(.*)$') {
-        [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process')
+        [Environment]::SetEnvironmentVariable(
+            $matches[1].Trim(),
+            $matches[2].Trim(),
+            'Process'
+        )
     }
 }
 ```
 
-## Run locally
 
-Start PostgreSQL:
+## Start PostgreSQL:
 
 ```bash
 docker compose up -d
+docker compose ps
 ```
 
-Load the environment variables as shown above, then start the API:
+Start the application after configuring the environment variables:
 
 ```bash
+mvn clean install
 mvn spring-boot:run
 ```
 
 Health check:
 
-```text
+```http
 GET http://localhost:8080/actuator/health
 ```
 
-## API
+## API endpoints
 
-### 1. Index a document
+### 1. Index plain text
 
 `POST /api/v1/documents`
+
+Body → raw → JSON:
 
 ```json
 {
@@ -92,37 +102,59 @@ GET http://localhost:8080/actuator/health
 }
 ```
 
-### 2. Ask a question
+### 2. Upload and index a PDF
+
+`POST /api/v1/documents/pdf`
+
+In Postman, choose **Body → form-data**, add a field named `file`, change its type to **File**, and select a PDF. Do not set the multipart `Content-Type` manually; Postman adds the required boundary.
+
+The current PDF reader supports text-based PDFs. Scanned/image-only PDFs need OCR.
+
+### 3. Ask a question using RAG
 
 `POST /api/v1/ai/ask`
 
+Body → raw → JSON:
+
 ```json
 {
-  "question": "How many days can employees work from home?"
+  "question": "How many days per week may employees work from home?"
 }
 ```
 
-Example answer: `Employees can work from home two days per week.`
+Index the document or PDF before asking questions. The answer depends on the content retrieved from pgvector and the chat model.
 
-## Test
+### 4. Health check
 
-Import `enterprise-ai-rag-postman-collection.json` into Postman. Run the health check, index a document, then run the question requests.
+`GET /actuator/health`
 
-Run unit tests:
+## Postman
+
+Import `enterprise-ai-rag-pdf-postman-collection.json`.
+
+Recommended test order:
+
+1. Actuator Health
+2. Upload and Index PDF
+3. Ask — Work From Home
+4. Ask — Annual Leave
+5. Ask — Sickness Absence
+6. Ask — Information Not in PDF
+
+Use the sample `company-policy-rag-sample.pdf` to test PDF ingestion.
+
+## Tests and build
+
+Run the unit tests:
 
 ```bash
 mvn test
 ```
 
-Build:
+Build the project:
 
 ```bash
 mvn clean install
 ```
 
-## Notes
-
-- Index documents before asking questions.
-- Chat and embedding requests may incur API charges.
-- The current POC accepts plain text; PDF ingestion, authentication, and production-grade security are not included.
-
+Unit tests use mocks and do not need live OpenAI calls or PostgreSQL. A full `@SpringBootTest` context test may require PostgreSQL to be running with matching credentials.
